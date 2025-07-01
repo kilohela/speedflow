@@ -2,10 +2,11 @@
 `include "defs.sv"
 module csr_file(
     input wire clk,
-    input wire rst_n,
+    input wire rst,
+    input wire pipeline_en,
     input wire csr_we,
-    input wire [2:0] sys_func,
-    input wire [4:0] rs1_imm,
+    input wire [2:0] func3,
+    input wire [4:0] rs1,
     input wire [31:0] src1,
     input wire [31:0] pc,
     input wire [11:0] csr_addr,
@@ -35,25 +36,25 @@ module csr_file(
 
     reg [31:0] csr_wdata;
     always_comb begin
-        case (sys_func)
+        case (func3)
             `CSRRW:  csr_wdata = src1;
-            `CSRRWI: csr_wdata = {27'b0, rs1_imm};
+            `CSRRWI: csr_wdata = {27'b0, rs1};
             `CSRRS:  csr_wdata = src1 | csr;
-            `CSRRSI: csr_wdata = {27'b0, rs1_imm} | csr;
+            `CSRRSI: csr_wdata = {27'b0, rs1} | csr;
             `CSRRC:  csr_wdata = ~src1 & csr;
-            `CSRRCI: csr_wdata = ~{27'b0, rs1_imm} & csr;
+            `CSRRCI: csr_wdata = ~{27'b0, rs1} & csr;
             default: csr_wdata = 32'h0000_0000;
         endcase
     end
 
     always_ff @(posedge clk) begin
-        if (!rst_n) begin
+        if (rst) begin
             mepc    <= 32'h0000_0000;
             mtvec   <= 32'h0000_0000;
             mcause  <= 32'h0000_0000;
             mstatus <= 32'h0000_0000;
-        end else if (csr_we) begin
-            if(sys_func != `CSR_ECALL) begin 
+        end else if (pipeline_en && csr_we) begin
+            if(func3 != `CSR_ECALL) begin 
                 case (csr_addr)
                     12'h300: mstatus <= csr_wdata;
                     12'h341: mepc    <= csr_wdata;

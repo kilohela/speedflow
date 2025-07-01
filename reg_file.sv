@@ -2,19 +2,20 @@
 
 module reg_file(
         input clk,
-        input rst_n,
-        input [4:0] rs1_addr,
-        input [4:0] rs2_addr,
-        input [4:0] rd_addr,
-        input [31:0] write_data,
-        input write_en,
-        output reg [31:0] rs1,
-        output reg [31:0] rs2
+        input rst,
+        input pipeline_en,
+        input [4:0] rs1,
+        input [4:0] rs2,
+        input [4:0] rd,
+        input [31:0] wdata,
+        input wen,
+        output wire [31:0] reg1,
+        output wire [31:0] reg2
     );
-    reg  [31:0] gpr [15:0] /*verilator public_flat*/ ;
+    reg  [31:0] gpr [15:0];
 
     always_ff @(posedge clk) begin
-        if (!rst_n) begin
+        if (rst) begin
             gpr[0] <= 32'h0;
             gpr[1] <= 32'h0;
             gpr[2] <= 32'h0;
@@ -32,12 +33,13 @@ module reg_file(
             gpr[14] <= 32'h0;
             gpr[15] <= 32'h0;
         end
-        else if (write_en && rd_addr != 0) begin
-            gpr[rd_addr[3:0]] <= write_data;
+        else if (pipeline_en && wen && rd != 0) begin
+            gpr[rd[3:0]] <= wdata;
         end
     end
 
-    assign rs1 = gpr[rs1_addr[3:0]];
-    assign rs2 = gpr[rs2_addr[3:0]];
+    // there need no internal write bypass
+    assign reg1 = gpr[rs1];
+    assign reg2 = gpr[rs2];
     
 endmodule

@@ -22,9 +22,9 @@
 //--------------------------------------------------------------------
 `define ALU_a_pc                                 2'b01
 `define ALU_a_0                                  2'b10
-`define ALU_a_rs1                                2'b00
+`define ALU_a_reg1                               2'b00
 
-`define ALU_b_rs2                                1'b1
+`define ALU_b_reg2                               1'b1
 `define ALU_b_imm                                1'b0
 
 
@@ -33,7 +33,7 @@
 //--------------------------------------------------------------------
 `define PC_SNPC                                 3'b000           // PC += 4
 `define PC_J_pc                                 3'b100           // PC += offset
-`define PC_J_rs1                                3'b101           // PC  = rs1+offset
+`define PC_J_reg                                3'b101           // PC  = reg1+offset
 `define PC_B                                    3'b010           // PC += offset or PC += 4 depends on alu result[0]
 `define PC_B_inv                                3'b011           // PC += offset or PC += 4 depends on alu result[0] inverted
 `define PC_EPC                                  3'b110           // PC  = epc (now mepc)
