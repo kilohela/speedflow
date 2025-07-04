@@ -5,11 +5,21 @@ extern Memory memory;
 extern DCache dcache;
 extern ICache icache;
 
+bool simulation_on = true;
+
+extern "C" void stop_simulation(){
+    simulation_on = false;
+}
+
 void speedflow_mainloop(){
     while(1){
         
     }
 }
+
+
+
+
 
 int main(int argc, char **argv, char **env) {
 
@@ -29,6 +39,10 @@ int main(int argc, char **argv, char **env) {
 
     // memory is already in global variable instantiation, skip memory initialization
 
+    // start simulation
+    int sim_time = 0;
+    int sim_cycle = 0;
+    rst_device();
     // run simulation for many clock cycles
     speedflow_mainloop();
 

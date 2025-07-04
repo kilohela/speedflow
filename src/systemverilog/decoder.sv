@@ -26,6 +26,8 @@ module decoder(
         output logic        target_jump
     );
 
+    import "DPI-C" function void stop_simulation();
+
 assign rs1 = inst_i[19:15];
 assign rs2 = inst_i[24:20];
 assign rd  = inst_i[11:7];
@@ -243,6 +245,7 @@ always @(*) begin
         7'b1110011: begin //system: ECALL, EBREAK, CSR
             if(inst_i == 32'h00100073) begin// EBREAK
                 ctrl_signals =     {`PC_SNPC,   `IMM_I,     `MEM_NONE,  `ALU_NONE,  `ALU_a_0,   `ALU_b_reg2,1'b0,      `RD_ALU,      1'b0};
+                stop_simulation();
             end else if(inst_i == 32'h00000073) // ECALL
                 ctrl_signals =     {`PC_TRAP,   `IMM_I,     `MEM_NONE,  `ALU_NONE,  `ALU_a_0,   `ALU_b_reg2,1'b0,      `RD_ALU,      1'b1};
             else if(|func3)// CSR
