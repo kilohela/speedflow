@@ -2,23 +2,21 @@
 #include "verilated.h"
 #include "verilated_vcd_c.h" 
 
-class VerilatedObject{
-public:
-    VerilatedObject();
-    rst_device();
+namespace verilator{
 
-private:
-    Vtop *dut;
-    VerilatedVcdC *vcd;
+    // design under test
+    class Dut{
+    public:
+        Dut(const char* vcd_path, const int max_vcd_time);
+        ~Dut();
+        void clk_cycle();
+        void rst_device();
 
-    void clk_cycle();
+    private:
+        Vtop *dut;
+        VerilatedVcdC *vcd;
+        const int max_vcd_time;
+        int sim_time = 0;
+    };
+
 }
-
-
-vcd = new VerilatedVcdC;
-    dut = new Vtop;
-
-
-    Verilated::traceEverOn(true);
-    dut->trace(vcd, 99);
-    vcd->open(vcd_file.c_str());

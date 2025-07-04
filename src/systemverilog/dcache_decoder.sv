@@ -93,6 +93,14 @@ module dcache_decoder(
             wwidth = 4;
         end
 
+        default: begin
+            ren = 0;
+            rwidth = 0;
+            rsign = 0;
+            wen = 0;
+            wwidth = 0;
+        end
+
         endcase
     end
 

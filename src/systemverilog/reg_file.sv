@@ -12,7 +12,7 @@ module reg_file(
         output wire [31:0] reg1,
         output wire [31:0] reg2
     );
-    reg  [31:0] gpr [15:0];
+    reg  [31:0] gpr [31:0];
 
     always_ff @(posedge clk) begin
         if (rst) begin
@@ -32,9 +32,25 @@ module reg_file(
             gpr[13] <= 32'h0;
             gpr[14] <= 32'h0;
             gpr[15] <= 32'h0;
+            gpr[16] <= 32'h0;
+            gpr[17] <= 32'h0;
+            gpr[18] <= 32'h0;
+            gpr[19] <= 32'h0;
+            gpr[20] <= 32'h0;
+            gpr[21] <= 32'h0;
+            gpr[22] <= 32'h0;
+            gpr[23] <= 32'h0;
+            gpr[24] <= 32'h0;
+            gpr[25] <= 32'h0;
+            gpr[26] <= 32'h0;
+            gpr[27] <= 32'h0;
+            gpr[28] <= 32'h0;
+            gpr[29] <= 32'h0;
+            gpr[30] <= 32'h0;
+            gpr[31] <= 32'h0;
         end
         else if (pipeline_en && wen && rd != 0) begin
-            gpr[rd[3:0]] <= wdata;
+            gpr[rd] <= wdata;
         end
     end
 

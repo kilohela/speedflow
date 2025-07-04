@@ -22,16 +22,12 @@ module dcache(
         input int rwidth, 
         input bit rsign, 
         output int rdata, 
-        input int wen, 
+        input bit wen, 
         input int wwidth, 
         input int wdata, 
         output bit valid
     );
 
-    always @(wen, ren, addr) begin
-        if(wen || ren) valid = dpi_dcache_is_hit(addr);
-        else valid = 1;
-    end
     always @(posedge clk) begin
         if(rst) begin
             
@@ -39,13 +35,12 @@ module dcache(
         else if(pipeline_en || valid == 1'b0) begin
             dpi_dcache(
                 ren,
-                raddr,
-                rwidth,
+                addr,
+                {29'b0, rwidth},
                 rsign,
                 rdata,
                 wen,
-                waddr,
-                wwidth,
+                {29'b0, wwidth},
                 wdata,
                 valid
             );

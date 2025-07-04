@@ -7,7 +7,7 @@ module top(
     input rst
 );
 
-    wire pipeline_enable; // enable the whole pipeline flowing, disabled when stall (e.g. cache miss)
+    wire pipeline_en; // enable the whole pipeline flowing, disabled when stall (e.g. cache miss)
     // signals in stages
     // 1. IF 
     // branch prediction and fetch instruction from icache
@@ -28,21 +28,22 @@ module top(
     wire    [1:0]       id_alu_a_sel;
     wire                id_alu_b_sel;
     wire                id_reg_w_en;
-    wire    [1:0]       id_reg_rd_sel;
+    wire    [1:0]       id_rd_sel;
     wire    [4:0]       id_rs1;
     wire    [4:0]       id_rs2;
     wire    [4:0]       id_rd;
 
     wire                id_csr_we;
-    wire                id_func3;
+    wire    [2:0]       id_func3;
     wire    [11:0]      id_csr_addr;
     wire                id_target_en;
     wire                id_target_jump;
+    wire                bpu_id_invalid;
 
     wire    [31:0]      id_reg1;
     wire    [31:0]      id_reg2;
-    wire                id_imm;
-    wire                id_target;
+    wire    [31:0]      id_imm;
+    wire    [31:0]      id_target;
 
     // 3. EX
     reg     [31:0]      ex_pc;
@@ -57,22 +58,22 @@ module top(
     reg     [1:0]       ex_alu_a_sel;
     reg                 ex_alu_b_sel;
     reg                 ex_reg_w_en;
-    reg     [1:0]       ex_reg_rd_sel;
+    reg     [1:0]       ex_rd_sel;
     reg     [4:0]       ex_rs1;
     reg     [4:0]       ex_rs2;
     reg     [4:0]       ex_rd;
 
     reg                 ex_csr_we;
-    reg                 ex_func3;
+    reg     [2:0]       ex_func3;
     reg     [11:0]      ex_csr_addr;
     reg                 ex_target_en;
     reg                 ex_target_jump;
 
-    reg     [31:0]      ex_reg1_id; // may be replaced by wb_wdata
+    reg     [31:0]      ex_reg1_id; // the reg data get from id stage, which may be replaced by wb_wdata
     wire    [31:0]      ex_reg1;
     reg     [31:0]      ex_reg2_id;
     wire    [31:0]      ex_reg2;
-    reg                 ex_imm;
+    reg     [31:0]      ex_imm;
 
     wire                ex_bypass_reg1;
     wire                ex_bypass_reg2;
@@ -81,16 +82,14 @@ module top(
     reg     [31:0]      ex_alu_b; // wire
     wire    [31:0]      ex_alu_o;
 
-    wire    [31:0]      ex_dcache_addr;
-    wire    [31:0]      ex_dcache_ren;
+    wire                ex_dcache_ren;
     wire    [2:0]       ex_dcache_rwidth;
     wire                ex_dcache_rsign;
 
-    wire    [31:0]      ex_dcache_wen;
+    wire                ex_dcache_wen;
     wire    [2:0]       ex_dcache_wwidth;
-    wire    [31:0]      ex_dcache_Wdata;
 
-    wire    [31:0]      ex_csr_out;
+    wire    [31:0]      ex_csr;
     wire    [31:0]      ex_mepc;
     wire    [31:0]      ex_mtvec;
 
@@ -100,16 +99,16 @@ module top(
 
     // 4. WB
     reg     [31:0]      wb_pc;
-    reg                 wb_rd_sel;
+    reg     [1:0]       wb_rd_sel;
 
     wire    [31:0]      wb_dcache_rdata;
-    wire    [31:0]      wb_dcache_valid;
+    wire                wb_dcache_valid;
 
     reg     [31:0]      wb_alu_o;
     reg     [4:0]       wb_rd;
     reg                 wb_reg_w_en;
     reg     [31:0]      wb_csr;
-    wire    [31:0]      wb_wdata;
+    reg     [31:0]      wb_wdata; // wire
     
 
     // pipe line register state update
@@ -130,7 +129,7 @@ module top(
             ex_alu_a_sel        <= id_alu_a_sel;
             ex_alu_b_sel        <= id_alu_b_sel;
             ex_reg_w_en         <= bpu_id_invalid?1'b0:id_reg_w_en;
-            ex_reg_rd_sel       <= id_reg_rd_sel;
+            ex_rd_sel           <= id_rd_sel;
             ex_rs1              <= id_rs1;
             ex_rs2              <= id_rs2;
             ex_rd               <= id_rd;
@@ -141,8 +140,8 @@ module top(
             ex_target_en        <= id_target_en;
             ex_target_jump      <= id_target_jump;
  
-            ex_reg1_id          <= id_reg1_id;
-            ex_reg2_id          <= id_reg2_id;
+            ex_reg1_id          <= id_reg1;
+            ex_reg2_id          <= id_reg2;
             ex_imm              <= id_imm; 
 
             wb_pc               <= ex_pc;
@@ -174,6 +173,7 @@ module top(
     icache u_icache(
         .clk            	(clk             ),
         .rst            	(rst             ),
+        .pipeline_en 	    (pipeline_en     ),
         .pc             	(if_pc           ),
         .inst           	(id_inst         ),
         .valid          	(id_icache_valid )
@@ -182,14 +182,14 @@ module top(
     // ID stage
     decoder u_decoder(
         .inst_i           	(id_inst         ),
-        .pc_ctrl         	(id_pc_ctl       ),
+        .pc_ctrl         	(id_pc_ctrl       ),
         .imm_type       	(id_imm_type     ),
         .mem_ctrl       	(id_mem_ctrl     ),
         .alu_ctrl       	(id_alu_ctrl     ),
         .alu_a_sel      	(id_alu_a_sel    ),
         .alu_b_sel      	(id_alu_b_sel    ),
         .reg_w_en    	    (id_reg_w_en     ),
-        .reg_rd_sel     	(id_reg_rd_sel   ),
+        .reg_rd_sel     	(id_rd_sel       ),
         .rs1            	(id_rs1          ),
         .rs2            	(id_rs2          ),
         .rd             	(id_rd           ),
@@ -255,8 +255,8 @@ module top(
     
     pc_sys u_pc_sys(
         .pc          	    (ex_pc           ),
-        .pc_ctl      	    (ex_pc_ctl       ),
-        .alu_o       	    (ex_alu_o        ),
+        .pc_ctrl      	    (ex_pc_ctrl      ),
+        .alu_o       	    (|ex_alu_o       ),
         .reg1        	    (ex_reg1         ),
         .offset      	    (ex_imm          ),
         .epc         	    (ex_mepc         ),
@@ -271,13 +271,13 @@ module top(
         .rst         	    (rst             ),
         .pipeline_en 	    (pipeline_en     ),
         .ren         	    (ex_dcache_ren   ),
-        .addr        	    (ex_dcache_addr  ),
+        .addr        	    (ex_alu_o        ),
         .rwidth      	    (ex_dcache_rwidth),
         .rsign       	    (ex_dcache_rsign ),
         .rdata       	    (wb_dcache_rdata ),
         .wen         	    (ex_dcache_wen   ),
         .wwidth      	    (ex_dcache_wwidth),
-        .wdata       	    (ex_dcache_wdata ),
+        .wdata       	    (ex_reg2         ),
         .valid       	    (wb_dcache_valid )
     );
 
@@ -285,7 +285,7 @@ module top(
         .ex_rs1      	    (ex_rs1          ),
         .ex_rs2      	    (ex_rs2          ),
         .wb_rd       	    (wb_rd           ),
-        .wb_reg_wen  	    (wb_reg_wen      ),
+        .wb_reg_wen  	    (wb_reg_w_en      ),
         .bypass_reg1 	    (ex_bypass_reg1  ),
         .bypass_reg2 	    (ex_bypass_reg2  )
     );
@@ -295,29 +295,29 @@ module top(
 
     always @ (*) begin
         case(ex_alu_a_sel)
-            `ALU_a_reg1: alu_a = ex_reg1;
-            `ALU_a_0: alu_a = 0;
-            `ALU_a_pc: alu_a = ex_pc;
-            default: alu_a = 0;
+            `ALU_a_reg1: ex_alu_a = ex_reg1;
+            `ALU_a_0: ex_alu_a = 0;
+            `ALU_a_pc: ex_alu_a = ex_pc;
+            default: ex_alu_a = 0;
         endcase
     end
 
     always @ (*) begin
         case(ex_alu_b_sel)
-            `ALU_b_reg2: alu_b = ex_reg2;
-            `ALU_b_imm: alu_b = ex_imm;
-            default: alu_b = 0;
+            `ALU_b_reg2: ex_alu_b = ex_reg2;
+            `ALU_b_imm: ex_alu_b = ex_imm;
+            default: ex_alu_b = 0;
         endcase
     end
 
     // WB
     always @ (*) begin
         case(wb_rd_sel)
-            `RD_ALU: wb_rd = wb_alu_o;
-            `RD_MEM: wb_rd = wb_dcache_rdata;
-            `RD_SNPC: wb_rd = wb_pc+4;
-            `RD_CSR: wb_rd = wb_csr;
-            default: wb_rd = 0;
+            `RD_ALU: wb_wdata = wb_alu_o;
+            `RD_MEM: wb_wdata = wb_dcache_rdata;
+            `RD_SNPC: wb_wdata = wb_pc+4;
+            `RD_CSR: wb_wdata = wb_csr;
+            default: wb_wdata = 0;
         endcase
     end
 

@@ -4,8 +4,8 @@
 
 // calculate the correct dnpc of given inst
 module pc_sys(
-        input pc, 
-        input [2:0] pc_ctl,
+        input [31:0] pc, 
+        input [2:0] pc_ctrl,
         input alu_o, // |alu_out
         input [31:0] reg1,
         input [31:0] offset, // imm
@@ -18,11 +18,11 @@ module pc_sys(
     );
     wire [31:0] snpc;
     assign snpc = pc + `INST_LENTH;
-    assign is_br = ((pc_ctl == `PC_B) || (pc_ctl == `PC_B_inv));
-    assign is_br_taken = (((pc_ctl == `PC_B) && alu_o) || ((pc_ctl == `PC_B_inv) && !alu_o));
+    assign is_br = ((pc_ctrl == `PC_B) || (pc_ctrl == `PC_B_inv));
+    assign is_br_taken = (((pc_ctrl == `PC_B) && alu_o) || ((pc_ctrl == `PC_B_inv) && !alu_o));
 
     always @(*) begin
-        case (pc_ctl)
+        case (pc_ctrl)
         `PC_SNPC:
             dnpc = snpc;
         `PC_J_pc:
@@ -49,7 +49,7 @@ module pc_sys(
             dnpc = mtvec;
         default: // error, should not reach here!
             dnpc = pc;
-            // $error("module pc_sys error: invalid pc_ctl value.");
+            // $error("module pc_sys error: invalid pc_ctrl value.");
         endcase
     end
 endmodule

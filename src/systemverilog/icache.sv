@@ -3,6 +3,7 @@
 module icache( 
     input               clk,
     input               rst,
+    input               pipeline_en,
     input       [31:0]  pc,
     output reg  [31:0]  inst,
     output reg          valid
@@ -14,9 +15,6 @@ module icache(
         output bit valid
     );
     
-    always @(pc) begin
-        valid = dpi_icache_is_hit(pc);
-    end
     always @(posedge clk) begin
         if(rst) begin
             valid = 1;

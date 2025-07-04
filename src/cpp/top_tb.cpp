@@ -1,5 +1,6 @@
 #include <cstdio>
 #include "MemSys.hpp"
+#include "verilator.hpp"
 
 extern Memory memory;
 extern DCache dcache;
@@ -11,22 +12,12 @@ extern "C" void stop_simulation(){
     simulation_on = false;
 }
 
-void speedflow_mainloop(){
-    while(1){
-        
-    }
-}
-
-
-
-
-
 int main(int argc, char **argv, char **env) {
 
     // please read decument or makefile for argument parse reference
 
     if(argc != 3){
-        printf("Please input image file name\n");
+        printf("Parameter list error.\n");
         return 1;
     }
 
@@ -40,11 +31,15 @@ int main(int argc, char **argv, char **env) {
     // memory is already in global variable instantiation, skip memory initialization
 
     // start simulation
-    int sim_time = 0;
-    int sim_cycle = 0;
-    rst_device();
+    int max_cycle = 50000;
+    int max_vcd_time = 100000;
+
+    verilator::Dut dut(vcd_path, max_vcd_time);
+    dut.rst_device();
     // run simulation for many clock cycles
-    speedflow_mainloop();
+    for(int cycle = 1; cycle <= max_cycle; cycle++){
+        dut.clk_cycle();
+    }
 
     return 0;
 }

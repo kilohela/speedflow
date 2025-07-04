@@ -20,7 +20,7 @@ module decoder(
         output logic [4:0] rd,
 
         output logic        csr_we,
-        output logic        func3,
+        output logic [2:0]  func3,
         output logic [11:0] csr_addr,
         output logic        target_en,
         output logic        target_jump

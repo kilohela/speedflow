@@ -7,7 +7,7 @@ module csr_file(
     input wire csr_we,
     input wire [2:0] func3,
     input wire [4:0] rs1,
-    input wire [31:0] src1,
+    input wire [31:0] reg1,
     input wire [31:0] pc,
     input wire [11:0] csr_addr,
     // output reg [31:0] mstatus,
@@ -37,11 +37,11 @@ module csr_file(
     reg [31:0] csr_wdata;
     always_comb begin
         case (func3)
-            `CSRRW:  csr_wdata = src1;
+            `CSRRW:  csr_wdata = reg1;
             `CSRRWI: csr_wdata = {27'b0, rs1};
-            `CSRRS:  csr_wdata = src1 | csr;
+            `CSRRS:  csr_wdata = reg1 | csr;
             `CSRRSI: csr_wdata = {27'b0, rs1} | csr;
-            `CSRRC:  csr_wdata = ~src1 & csr;
+            `CSRRC:  csr_wdata = ~reg1 & csr;
             `CSRRCI: csr_wdata = ~{27'b0, rs1} & csr;
             default: csr_wdata = 32'h0000_0000;
         endcase
