@@ -5,20 +5,20 @@
 
 constexpr int kCacheSetCount   = 1024;
 constexpr int kCacheWayCount   = 4;
-constexpr size_t kCacheBlockSize  = 8;
+constexpr size_t kCacheBlockSize  = 128;
 constexpr size_t kMemorySize      = 0x10000000; // should not be more than 0x10000000, the region above 0x8FFFFFFF should be map on other function
-constexpr auto kMemoryImagePath = "image_path";
+constexpr auto kMemoryImagePath = "test/testc.bin";
 
 namespace memory_map {
     static constexpr uint32_t kPhysical = 0x80000000;
-    static constexpr uint32_t kSerial   = 0xa0000000;
+    static constexpr uint32_t kSerial   = 0xa00003f8;
 }
 
 enum Range {
-    Physical, Serial,
+    Physical, Serial, Invalid, 
 };
 
-Range AddressParse(const uint32_t address, uint32_t& tag, uint32_t& index, uint32_t block_offset);
+Range AddressParse(const uint32_t address, uint32_t& tag, uint32_t& index, uint32_t& block_offset);
 
 using CacheBlockData = std::array<uint8_t, kCacheBlockSize>;
 

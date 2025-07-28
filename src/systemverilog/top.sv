@@ -12,7 +12,6 @@ module top(
     // 1. IF 
     // branch prediction and fetch instruction from icache
     wire    [31:0]      if_pc;
-    wire                bpu_id_invlid;
 
     // 2. ID
     // decode and fetch data from regfile, and calculate immext
@@ -47,11 +46,8 @@ module top(
 
     // 3. EX
     reg     [31:0]      ex_pc;
-    reg     [31:0]      ex_inst;
-    reg                 ex_icache_valid;
 
     reg     [2:0]       ex_pc_ctrl;
-    reg     [2:0]       ex_imm_type;
     reg     [3:0]       ex_mem_ctrl;
 
     reg     [3:0]       ex_alu_ctrl;
@@ -66,8 +62,6 @@ module top(
     reg                 ex_csr_we;
     reg     [2:0]       ex_func3;
     reg     [11:0]      ex_csr_addr;
-    reg                 ex_target_en;
-    reg                 ex_target_jump;
 
     reg     [31:0]      ex_reg1_id; // the reg data get from id stage, which may be replaced by wb_wdata
     wire    [31:0]      ex_reg1;
@@ -114,15 +108,17 @@ module top(
     // pipe line register state update
     assign pipeline_en = id_icache_valid && wb_dcache_valid;
     always @(posedge clk) begin
-        if(pipeline_en) begin
+        if (rst) begin
+            ex_mem_ctrl         <= `MEM_NONE;
+            ex_reg_w_en         <= 1'b0;
+            ex_csr_we           <= 1'b0;
+            wb_reg_w_en         <= 1'b0;
+        end else if(pipeline_en) begin
             id_pc               <= if_pc;
  
             ex_pc               <= id_pc;
-            ex_inst             <= id_inst;
-            ex_icache_valid     <= id_icache_valid;
  
             ex_pc_ctrl          <= id_pc_ctrl;
-            ex_imm_type         <= id_imm_type;
             ex_mem_ctrl         <= bpu_id_invalid?`MEM_NONE:id_mem_ctrl;
  
             ex_alu_ctrl         <= id_alu_ctrl;
@@ -137,8 +133,6 @@ module top(
             ex_csr_we           <= bpu_id_invalid?1'b0:id_csr_we;
             ex_func3            <= id_func3;
             ex_csr_addr         <= id_csr_addr;
-            ex_target_en        <= id_target_en;
-            ex_target_jump      <= id_target_jump;
  
             ex_reg1_id          <= id_reg1;
             ex_reg2_id          <= id_reg2;
@@ -158,7 +152,7 @@ module top(
         .clk            	(clk             ),
         .rst            	(rst             ),
         .pipeline_en    	(pipeline_en     ),
-        .ex_pc          	(ex_pc           ),
+        .ex_pc7_0          	(ex_pc[7:0]           ),
         .ex_dnpc        	(ex_dnpc         ),
         .is_ex_br       	(ex_is_br        ),
         .is_br_taken    	(ex_is_br_taken  ),

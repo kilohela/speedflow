@@ -21,7 +21,7 @@ module pc_sys(
     assign is_br = ((pc_ctrl == `PC_B) || (pc_ctrl == `PC_B_inv));
     assign is_br_taken = (((pc_ctrl == `PC_B) && alu_o) || ((pc_ctrl == `PC_B_inv) && !alu_o));
 
-    always @(*) begin
+    always_comb begin
         case (pc_ctrl)
         `PC_SNPC:
             dnpc = snpc;

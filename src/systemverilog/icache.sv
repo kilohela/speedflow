@@ -6,21 +6,32 @@ module icache(
     input               pipeline_en,
     input       [31:0]  pc,
     output reg  [31:0]  inst,
-    output reg          valid
+    output wire         valid
 );
 
     import "DPI-C" function void dpi_icache(
         input  int pc, 
-        output int inst, 
-        output bit valid
+        output int inst
     );
+
+    import "DPI-C" function bit dpi_icache_valid(
+        input  int pc
+    );
+
+    reg [31:0] id_pc;
+
+    assign valid = dpi_icache_valid(pc);
     
     always @(posedge clk) begin
         if(rst) begin
-            valid = 1;
+            id_pc <= `PC_INITIAL_ADDRESS;
         end
         if(pipeline_en || valid==1'b0) begin
-            dpi_icache(pc, inst, valid);
+            id_pc <= pc;
         end
+    end
+
+    always_comb begin
+        dpi_icache(id_pc, inst);
     end
 endmodule

@@ -29,8 +29,6 @@ namespace verilator{
     }
 
     void Dut::rst_device(){
-        dut->rst = 0;
-        clk_cycle();
         dut->rst = 1;
         clk_cycle();
         dut->rst = 0;

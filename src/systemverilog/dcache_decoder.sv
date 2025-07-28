@@ -11,7 +11,7 @@ module dcache_decoder(
     output reg  [2:0]   wwidth
 );
 
-    always @(*) begin
+    always_comb begin
         case(decode_Mctl)
         `MEM_NONE: begin
             ren = 0;

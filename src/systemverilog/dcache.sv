@@ -13,7 +13,7 @@ module dcache(
     input               wen,
     input       [2:0]   wwidth,
     input       [31:0]  wdata,
-    output reg          valid // (waddr/raddr --> wvalid/rvalid) signal chain should be combinational and change within one cycle(before clk), this signal is used to stall pipeline
+    output wire         valid
 );
 
     import "DPI-C" function void dpi_dcache(
@@ -24,27 +24,51 @@ module dcache(
         output int rdata, 
         input bit wen, 
         input int wwidth, 
-        input int wdata, 
-        output bit valid
+        input int wdata
     );
+
+    import "DPI-C" function bit dpi_dcache_valid(
+        input int addr,
+        input bit en
+    );
+
+    assign valid = dpi_dcache_valid(addr, ren || wen);
+
+    reg        _ren;    
+    reg [31:0] _addr;
+    reg [2:0]  _rwidth;
+    reg        _rsign;
+    reg        _wen; 
+    reg [2:0]  _wwidth;
+    reg [31:0] _wdata;
 
     always @(posedge clk) begin
         if(rst) begin
-            
+            _ren <= 0;
+            _wen <= 0;
         end
         else if(pipeline_en || valid == 1'b0) begin
-            dpi_dcache(
-                ren,
-                addr,
-                {29'b0, rwidth},
-                rsign,
-                rdata,
-                wen,
-                {29'b0, wwidth},
-                wdata,
-                valid
-            );
+            _ren    <= ren;   
+            _addr   <= addr;  
+            _rwidth <= rwidth;
+            _rsign  <= rsign; 
+            _wen    <= wen;   
+            _wwidth <= wwidth;
+            _wdata  <= wdata;
         end
+    end
+
+    always_comb begin
+        dpi_dcache(
+                _ren,
+                _addr,
+                {29'b0, _rwidth},
+                _rsign,
+                rdata,
+                _wen,
+                {29'b0, _wwidth},
+                _wdata
+        );
     end
 
 

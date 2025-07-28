@@ -5,25 +5,25 @@
 module decoder(
         input [31:0] inst_i,
 
-        output logic [2:0] pc_ctrl, 
-        output logic [2:0] imm_type, 
-        output logic [3:0] mem_ctrl,
+        output wire [2:0] pc_ctrl, 
+        output wire [2:0] imm_type, 
+        output wire [3:0] mem_ctrl,
 
-        output logic [3:0] alu_ctrl, 
-        output logic [1:0] alu_a_sel, 
-        output logic       alu_b_sel, 
+        output wire [3:0] alu_ctrl, 
+        output wire [1:0] alu_a_sel, 
+        output wire       alu_b_sel, 
 
-        output logic       reg_w_en,
-        output logic [1:0] reg_rd_sel,
-        output logic [4:0] rs1,
-        output logic [4:0] rs2,
-        output logic [4:0] rd,
+        output wire       reg_w_en,
+        output wire [1:0] reg_rd_sel,
+        output wire [4:0] rs1,
+        output wire [4:0] rs2,
+        output wire [4:0] rd,
 
-        output logic        csr_we,
-        output logic [2:0]  func3,
-        output logic [11:0] csr_addr,
-        output logic        target_en,
-        output logic        target_jump
+        output wire        csr_we,
+        output wire [2:0]  func3,
+        output wire [11:0] csr_addr,
+        output wire        target_en,
+        output wire        target_jump
     );
 
     import "DPI-C" function void stop_simulation();
@@ -40,10 +40,10 @@ wire [6:0] func7 = inst_i[31:25];
 assign target_en = (opcode == 7'b1100011 || opcode == 7'b1101111); // note: JALR: target_en = 0
 assign target_jump = (opcode == 7'b1101111);
 
-logic [20:0] ctrl_signals;
+reg [20:0] ctrl_signals;
 
 assign                              {pc_ctrl,    imm_type,   mem_ctrl,   alu_ctrl,   alu_a_sel,  alu_b_sel,  reg_w_en,   reg_rd_sel, csr_we} = ctrl_signals;
-always @(*) begin
+always_comb begin
     case(opcode)
         7'b0110111: begin //LUI
                     ctrl_signals = {`PC_SNPC,   `IMM_U,     `MEM_NONE,  `ALU_ADD,   `ALU_a_0,   `ALU_b_imm, 1'b1,       `RD_ALU,     1'b0};    
@@ -88,7 +88,8 @@ always @(*) begin
                 end
 
                 default: begin //error
-
+                    ctrl_signals = {`PC_SNPC,   `IMM_I,     `MEM_NONE,  `ALU_NONE,  `ALU_a_0,   `ALU_b_reg2,1'b0,      `RD_ALU,      1'b0};
+                    stop_simulation();
                 end
 
             endcase
@@ -117,7 +118,8 @@ always @(*) begin
                 end
 
                 default: begin //error
-
+                    ctrl_signals = {`PC_SNPC,   `IMM_I,     `MEM_NONE,  `ALU_NONE,  `ALU_a_0,   `ALU_b_reg2,1'b0,      `RD_ALU,      1'b0};
+                    stop_simulation();
                 end
 
             endcase
@@ -138,7 +140,8 @@ always @(*) begin
                 end
 
                 default: begin //error
-
+                    ctrl_signals = {`PC_SNPC,   `IMM_I,     `MEM_NONE,  `ALU_NONE,  `ALU_a_0,   `ALU_b_reg2,1'b0,      `RD_ALU,      1'b0};
+                    stop_simulation();
                 end
 
             endcase
@@ -185,7 +188,8 @@ always @(*) begin
 
 
                 default: begin //error
-
+                    ctrl_signals = {`PC_SNPC,   `IMM_I,     `MEM_NONE,  `ALU_NONE,  `ALU_a_0,   `ALU_b_reg2,1'b0,      `RD_ALU,      1'b0};
+                    stop_simulation();
                 end
 
             endcase
@@ -233,13 +237,14 @@ always @(*) begin
                 end
 
                 default: begin //error
-
+                    ctrl_signals = {`PC_SNPC,   `IMM_I,     `MEM_NONE,  `ALU_NONE,  `ALU_a_0,   `ALU_b_reg2,1'b0,      `RD_ALU,      1'b0};
+                    stop_simulation();
                 end
             endcase
         end
 
         7'b0001111: begin //FENCE (not implemented)
-
+            ctrl_signals =         {`PC_SNPC,   `IMM_I,     `MEM_NONE,  `ALU_NONE,  `ALU_a_0,   `ALU_b_reg2,1'b0,      `RD_ALU,      1'b0};
         end
 
         7'b1110011: begin //system: ECALL, EBREAK, CSR
@@ -254,7 +259,8 @@ always @(*) begin
                 ctrl_signals =     {`PC_EPC,    `IMM_I,     `MEM_NONE,  `ALU_NONE,  `ALU_a_0,   `ALU_b_reg2,1'b0,      `RD_ALU,      1'b0};
         end
 
-        default: ;
+        default: 
+                ctrl_signals =     {`PC_SNPC,   `IMM_I,     `MEM_NONE,  `ALU_NONE,  `ALU_a_0,   `ALU_b_reg2,1'b0,      `RD_ALU,      1'b0};
     endcase
 
 end

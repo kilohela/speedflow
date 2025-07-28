@@ -54,8 +54,8 @@ module reg_file(
         end
     end
 
-    // there need no internal write bypass
-    assign reg1 = gpr[rs1];
-    assign reg2 = gpr[rs2];
+    // internal write bypass
+    assign reg1 = (wen && rs1 == rd && |rd)?wdata:gpr[rs1];
+    assign reg2 = (wen && rs2 == rd && |rd)?wdata:gpr[rs2];
     
 endmodule

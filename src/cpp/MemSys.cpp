@@ -1,15 +1,17 @@
 #include <cstdbool>
 #include <cstdint>
-#include <cstdlib>
 #include <cstring>
 #include <fstream>
+#include <spdlog/common.h>
 #include <stdexcept>
+#include <spdlog/spdlog.h>
 
 #include "MemSys.hpp"
+#include "svdpi.h"
 
 // return the range descriptor 
 // if the address is in physical address mapping range, it will align the address and split
-Range AddressParse(const uint32_t address, uint32_t& tag, uint32_t& index, uint32_t block_offset){
+Range AddressParse(const uint32_t address, uint32_t& tag, uint32_t& index, uint32_t& block_offset){
     switch(address){
         case memory_map::kSerial:return Range::Serial;
     }
@@ -20,7 +22,9 @@ Range AddressParse(const uint32_t address, uint32_t& tag, uint32_t& index, uint3
     tag = aligned_address / b;
     index = aligned_address % b / a;
     block_offset = aligned_address % a;
-    return Range::Physical;
+    if(address >= memory_map::kPhysical && address < memory_map::kPhysical + kMemorySize)
+        return Range::Physical;
+    else return Range::Invalid;
 }
 
 
@@ -62,7 +66,8 @@ CacheBlockData Cache::Read(uint32_t index, uint32_t tag){
             return block.data;
         }
     }
-    throw std::runtime_error("Attempt to read missed address!");
+    spdlog::error("Attempt to read missed address at index: 0x{0:x}, tag: 0x{1:x}", index, tag);
+    throw std::runtime_error("please read log");
 }
 
 // only accept hit addr
@@ -70,19 +75,24 @@ void Cache::Write(uint32_t index, uint32_t tag, CacheBlockData data){
     for (auto& block: sets_.at(index)){
         if (block.tag == tag && block.valid){
             block.data = data;
+            return;
         }
     }
-    throw std::runtime_error("Attempt to write missed address!");
+    spdlog::error("Attempt to write missed address. Write nothing!");
 }
 
 void Cache::GetBlock(uint32_t address){
-    uint32_t aligned_address = address>>2<<2;
-    auto block_data = memory_.FetchBlock(aligned_address);
+    spdlog::debug("{0}: address: 0x{1:08x}", __func__, address);
+    uint32_t block_aligned_address = address / kCacheBlockSize * kCacheBlockSize;
     uint32_t tag, index, block_offset;
-    AddressParse(address, tag, index, block_offset);
+    Range range = AddressParse(address, tag, index, block_offset);
+    if(range != Range::Physical){
+        spdlog::error("Address not in the cache range, do nothing!");
+        return;
+    }
+    auto block_data = memory_.FetchBlock(block_aligned_address);
     for (auto& block: sets_.at(index)){
         if (block.valid == false){
-            memory_.StoreBlock(block.data, block.tag + index);
             block.valid = true;
             block.tag = tag;
             block.data = block_data;
@@ -92,17 +102,20 @@ void Cache::GetBlock(uint32_t address){
 
     // all block(line) in cache is valid, replace the first
     auto& block = sets_.at(index).at(0);
+    memory_.StoreBlock(block.data, block.tag + index);
     block.valid = true;
     block.tag = tag;
     block.data = block_data;
 }
 
 CacheBlockData Memory::FetchBlock(uint32_t aligned_address) const {
+    spdlog::debug("Memory: fetch data block at aligned address: 0x{0:08x}", aligned_address);
     uint32_t data_offset = aligned_address - start_address_;
     return *(CacheBlockData*)(data_.data()+data_offset);
 }
 
 void Memory::StoreBlock(const CacheBlockData &block_data, uint32_t aligned_address){
+    spdlog::debug("Memory: Store data block at aligned address: 0x{0:08x}", aligned_address);
     uint32_t data_offset = aligned_address - start_address_;
     *(CacheBlockData*)(data_.data()+data_offset) = block_data;
 }
@@ -113,20 +126,22 @@ ICache icache(memory);
 
 // only accept aligned memory access, access through 2 blocks is prohibited
 extern "C" void dpi_dcache(
-    const bool ren, 
+    const svBit ren, 
     const uint32_t addr, 
     const uint32_t rwidth, 
-    const bool rsign, 
+    const svBit rsign, 
     uint32_t* rdata, 
-    const bool wen, 
+    const svBit wen, 
     const uint32_t wwidth, 
-    const uint32_t wdata, 
-    volatile bool* valid
+    const uint32_t wdata
 ){
     if(ren){
-        *valid = 0;
-        uint32_t tag, index, block_offset;
+        // spdlog::debug("dcache valid = 0");
+        // *valid = 0;
+        // spdlog::debug("{}: addr: 0x{:08x}", __func__, addr);
+        uint32_t tag, index, block_offset, byte_offset;
         Range range = AddressParse(addr, tag, index, block_offset);
+        byte_offset = addr % 4;
         switch (range) {
             case Range::Serial:{
                 *rdata = getchar();
@@ -139,25 +154,37 @@ extern "C" void dpi_dcache(
                 }
 
                 CacheBlockData block_data = dcache.Read(index, tag);
-
-                uint32_t rdata_word = *(uint32_t*)(&block_data[block_offset]);   
+                if(block_offset == kCacheBlockSize - 4 && byte_offset!= 0){
+                    spdlog::error("Attempt to read across two blocks! Change byte_offset to 0 to prevent host SEGV! Simulator will load wrong value!");
+                    byte_offset = 0;
+                }
+                uint32_t rdata_word = *(uint32_t*)(&block_data[block_offset + byte_offset]);
                 uint32_t rdata_unext = rdata_word<<(32-rwidth*8); // LSB-aligned --> MSB-aligned, cut the MSBs
-
                 if(rsign){
                     *rdata = rdata_unext>>(32-rwidth*8); // note endianness!
                 }
                 else{
                     *rdata = ((int32_t)rdata_unext)>>(32-rwidth*8);
                 }
+                spdlog::debug("dcache read: load 0x{:08x} from address 0x{:08x}, width = {}", *rdata, addr, rwidth);
+                break;
+            }
+
+            case Range::Invalid:{
+                spdlog::error("{}: Invalid address: 0x{:08x}, do nothing!", __func__, addr);
+                spdlog::error("Note, read data will be arbitrary!");
                 break;
             }
         }
-        *valid = 1;
+        // *valid = 1;
+        // spdlog::debug("dcache valid = {}", *valid);
     }
     else if(wen){
-        *valid = 0;
-        uint32_t tag, index, block_offset;
+        // spdlog::debug("dcache valid = 0");
+        // *valid = 0;
+        uint32_t tag, index, block_offset, byte_offset;
         Range range = AddressParse(addr, tag, index, block_offset);
+        byte_offset = addr % 4;
         switch (range) {
             case Range::Serial:{
                 putchar(wdata);
@@ -168,28 +195,58 @@ extern "C" void dpi_dcache(
                     dcache.GetBlock(addr);
                 }
                 CacheBlockData block_data = dcache.Read(index, tag);
-                std::memcpy(block_data.data()+block_offset, &wdata, wwidth);
-                dcache.Write(index, tag, block_data);
+                if(block_offset == kCacheBlockSize - 4 && byte_offset!= 0){
+                    spdlog::error("Attempt to write across two blocks! Do nothing!");
+                }
+                else {
+                    std::memcpy(block_data.data()+block_offset+byte_offset, &wdata, wwidth);
+                    dcache.Write(index, tag, block_data);
+                }
+                spdlog::debug("dcache write: store 0x{:08x} to address 0x{:08x}, width = {}", wdata, addr, wwidth);
+                break;
+            }
+            case Range::Invalid:{
+                spdlog::error("{}: Invalid address: 0x{:08x}, do nothing!", __func__, addr);
+                spdlog::error("Note, read data will be arbitrary!");
                 break;
             }
         }
-        *valid = 1;
+        // spdlog::debug("dcache valid = 1");
+        // *valid = 1;
     }
     else return;
 }
 
-extern "C" void dpi_icache(uint32_t addr, uint32_t* rdata, volatile bool* valid){ // don't support unaligned memory access!
-    *valid = 0;
+extern "C" void dpi_icache(uint32_t addr, uint32_t* rdata){ // don't support unaligned memory access!
+    // spdlog::debug("icache valid = 0");
+    // *valid = 0;
     uint32_t tag, index, block_offset;
     Range range = AddressParse(addr, tag, index, block_offset);
     if(range != Range::Physical){
-        throw std::runtime_error("Instruction address not in range");
+        spdlog::error("{}: Invalid address: 0x{:08x}, do nothing!", __func__, addr);
+        spdlog::error("Note, read data will be arbitrary!");
+        return;
     }
     // called combinational
     if(!(icache.IsCacheHit(index, tag))){ // cache miss
         icache.GetBlock(addr);
     }
-    CacheBlockData block_data = dcache.Read(index, tag);
+    CacheBlockData block_data = icache.Read(index, tag);
     *rdata = *(uint32_t*)(block_data.data()+block_offset);
-    *valid = 1;
+    // spdlog::debug("icache valid = 1");
+    // *valid = 1;
+}
+
+extern "C" svBit dpi_icache_valid(uint32_t addr){
+    return 1;
+    // uint32_t tag, index, block_offset;
+    // Range range = AddressParse(addr, tag, index, block_offset);
+    // return icache.IsCacheHit(index, tag);
+}
+
+extern "C" svBit dpi_dcache_valid(uint32_t addr, svBit en){
+    return 1;
+    // uint32_t tag, index, block_offset;
+    // Range range = AddressParse(addr, tag, index, block_offset);
+    // return !en || icache.IsCacheHit(index, tag);
 }

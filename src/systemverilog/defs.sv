@@ -71,9 +71,9 @@
 `define MEM_LOAD4                               4'b0010
 `define MEM_LOAD1U                              4'b0100
 `define MEM_LOAD2U                              4'b0101
-`define MEM_STORE1                               4'b1000
-`define MEM_STORE2                               4'b1001
-`define MEM_STORE4                               4'b1010
+`define MEM_STORE1                              4'b1000
+`define MEM_STORE2                              4'b1001
+`define MEM_STORE4                              4'b1010
     
 //--------------------------------------------------------------------
 // CSR Operations (func3)

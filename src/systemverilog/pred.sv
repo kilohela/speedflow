@@ -7,7 +7,7 @@ module pred(
     input               clk,
     input               rst,
     input               pipeline_en,
-    input       [31:0]  ex_pc,
+    input       [7:0]   ex_pc7_0,
     input       [31:0]  ex_dnpc, // calculated in excute stage (comb out)
     input               is_ex_br, // if this is a branch(ex stage)
     input               is_br_taken, // if the branch is taken (enabled when pc_sys calculated the result)
@@ -44,7 +44,7 @@ module pred(
                     work_state <= S_PVI;
                 end // else PVV, keep the state
                 if(is_ex_br) begin
-                    BHT_addr <= ex_pc[7:0];
+                    BHT_addr <= ex_pc7_0;
                     BHT_tag  <= is_br_taken;
                 end
             end
