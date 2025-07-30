@@ -1,21 +1,24 @@
+#pragma once
 #include <cstddef>
 #include <cstdint>
 #include <array>
+#include <memory>
 #include <string>
+#include <vector>
 
-constexpr int kCacheSetCount   = 1024;
+constexpr int kCacheSetCount   = 1024 * 128 / 8;
 constexpr int kCacheWayCount   = 4;
-constexpr size_t kCacheBlockSize  = 128;
+constexpr size_t kCacheBlockSize  = 8;
 constexpr size_t kMemorySize      = 0x10000000; // should not be more than 0x10000000, the region above 0x8FFFFFFF should be map on other function
-constexpr auto kMemoryImagePath = "test/testc.bin";
+constexpr size_t kDeviceSize      = 0x10000000;
 
 namespace memory_map {
     static constexpr uint32_t kPhysical = 0x80000000;
-    static constexpr uint32_t kSerial   = 0xa00003f8;
+    static constexpr uint32_t kDevice   = 0xa0000000;
 }
 
-enum Range {
-    Physical, Serial, Invalid, 
+enum class Range {
+    Physical, Device, Invalid, 
 };
 
 Range AddressParse(const uint32_t address, uint32_t& tag, uint32_t& index, uint32_t& block_offset);
@@ -32,7 +35,9 @@ using CacheSet = std::array<CacheBlock, kCacheWayCount>;
 
 class Memory {
 public:
-    Memory(const std::string& image_path, uint32_t start_address);
+    Memory();
+
+    void init(const std::string& image_path, uint32_t start_address);
 
     // invalid fetch address will cause error
     CacheBlockData FetchBlock(uint32_t aligned_address) const;

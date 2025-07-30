@@ -6,6 +6,7 @@
 #include <stdexcept>
 #include <spdlog/spdlog.h>
 
+#include "device.hpp"
 #include "MemSys.hpp"
 #include "svdpi.h"
 
@@ -13,7 +14,7 @@
 // if the address is in physical address mapping range, it will align the address and split
 Range AddressParse(const uint32_t address, uint32_t& tag, uint32_t& index, uint32_t& block_offset){
     switch(address){
-        case memory_map::kSerial:return Range::Serial;
+        case memory_map::kDevice:return Range::Device;
     }
     
     uint32_t aligned_address = address>>2<<2;
@@ -24,13 +25,23 @@ Range AddressParse(const uint32_t address, uint32_t& tag, uint32_t& index, uint3
     block_offset = aligned_address % a;
     if(address >= memory_map::kPhysical && address < memory_map::kPhysical + kMemorySize)
         return Range::Physical;
+    else if(address >= memory_map::kDevice && address < memory_map::kDevice + kDeviceSize)
+        return Range::Device;
     else return Range::Invalid;
 }
 
 
-Memory::Memory(const std::string& image_path, std::uint32_t start_address) : start_address_(start_address){
+
+Memory::Memory(){
+    memset(data_.data(), '#', kMemorySize);
+}
+
+
+void Memory::init(const std::string& image_path, uint32_t start_address){
+    start_address_ = start_address;
     std::ifstream file(image_path, std::ios::binary);
     if (!file) {
+        spdlog::critical("{}: Failed to open image file: {}", __func__, image_path);
         throw std::system_error(errno, std::generic_category(), "Failed to open file: " + image_path);
     }
     
@@ -40,10 +51,12 @@ Memory::Memory(const std::string& image_path, std::uint32_t start_address) : sta
     file.seekg(0, std::ios::beg);
     
     if (file_size > kMemorySize) {
+        spdlog::critical("{}: File is too large for the target buffer: {}", __func__, image_path);
         throw std::runtime_error("File is too large for the target buffer");
     }
 
     if (!file.read((char*)(data_.data()), file_size)) {
+        spdlog::critical("{}: Failed to read file: {}", __func__, image_path);
         throw std::system_error(errno, std::generic_category(), "Failed to read file: " + image_path);
     }
 }
@@ -102,7 +115,7 @@ void Cache::GetBlock(uint32_t address){
 
     // all block(line) in cache is valid, replace the first
     auto& block = sets_.at(index).at(0);
-    memory_.StoreBlock(block.data, block.tag + index);
+    memory_.StoreBlock(block.data, block.tag * kCacheBlockSize * kCacheSetCount + index * kCacheBlockSize);
     block.valid = true;
     block.tag = tag;
     block.data = block_data;
@@ -120,9 +133,10 @@ void Memory::StoreBlock(const CacheBlockData &block_data, uint32_t aligned_addre
     *(CacheBlockData*)(data_.data()+data_offset) = block_data;
 }
 
-Memory memory(kMemoryImagePath, memory_map::kPhysical);
+Memory memory;
 DCache dcache(memory);
 ICache icache(memory);
+DeviceManager device_manager;
 
 // only accept aligned memory access, access through 2 blocks is prohibited
 extern "C" void dpi_dcache(
@@ -143,8 +157,8 @@ extern "C" void dpi_dcache(
         Range range = AddressParse(addr, tag, index, block_offset);
         byte_offset = addr % 4;
         switch (range) {
-            case Range::Serial:{
-                *rdata = getchar();
+            case Range::Device:{
+                *rdata = device_manager.DeviceRead(addr);
                 break;
             }
 
@@ -154,8 +168,9 @@ extern "C" void dpi_dcache(
                 }
 
                 CacheBlockData block_data = dcache.Read(index, tag);
-                if(block_offset == kCacheBlockSize - 4 && byte_offset!= 0){
+                if(block_offset == kCacheBlockSize - 4 && byte_offset!= 0 && byte_offset + rwidth > 4){
                     spdlog::error("Attempt to read across two blocks! Change byte_offset to 0 to prevent host SEGV! Simulator will load wrong value!");
+                    spdlog::error("addr: 0x{:08x}, width: {}", addr, rwidth);
                     byte_offset = 0;
                 }
                 uint32_t rdata_word = *(uint32_t*)(&block_data[block_offset + byte_offset]);
@@ -186,8 +201,8 @@ extern "C" void dpi_dcache(
         Range range = AddressParse(addr, tag, index, block_offset);
         byte_offset = addr % 4;
         switch (range) {
-            case Range::Serial:{
-                putchar(wdata);
+            case Range::Device:{
+                device_manager.DeviceWrite(addr, wdata);
                 break;
             }
             case Range::Physical:{
@@ -195,8 +210,9 @@ extern "C" void dpi_dcache(
                     dcache.GetBlock(addr);
                 }
                 CacheBlockData block_data = dcache.Read(index, tag);
-                if(block_offset == kCacheBlockSize - 4 && byte_offset!= 0){
+                if(block_offset == kCacheBlockSize - 4 && byte_offset!= 0 && byte_offset + wwidth > 4){
                     spdlog::error("Attempt to write across two blocks! Do nothing!");
+                    spdlog::error("addr: 0x{:08x}, width: {}", addr, wwidth);
                 }
                 else {
                     std::memcpy(block_data.data()+block_offset+byte_offset, &wdata, wwidth);
