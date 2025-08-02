@@ -6,21 +6,23 @@ OBJCOPY     = $(TARGET)-objcopy
 OBJDUMP     = $(TARGET)-objdump
 READELF     = $(TARGET)-readelf
 
-# 编译选项
+BUILD_DIR   = build
+
+# compile flags
 CFLAGS      = -march=rv32i_zicsr -mabi=ilp32 -ffreestanding -I. 
 LDFLAGS     = -T linker.ld -nostartfiles -lgcc -lm 
  
-# 源文件
-C_SRCS      = testc.c syscall.c
-ASM_SRCS    = start.S trap.S # maybe crt0.S
-OBJS        = $(C_SRCS:.c=.o) $(ASM_SRCS:.S=.o)
+# source files
+C_SRCS      = $(wildcard *.c)
+ASM_SRCS    = $(wildcard *.S)
+OBJS        = $(addprefix $(BUILD_DIR)/, $(C_SRCS:.c=.o) $(ASM_SRCS:.S=.o))
 
-# 最终目标
-PROG_ELF    = testc.elf
-PROG_BIN    = testc.bin
+# final targets
+PROG_ELF    = $(BUILD_DIR)/testc.elf
+PROG_BIN    = $(BUILD_DIR)/testc.bin
 
-ASM_TXT   = testc.txt
-ELF_TXT   = testc.elf.txt
+ASM_TXT   = $(BUILD_DIR)/testc.txt
+ELF_TXT   = $(BUILD_DIR)/testc.elf.txt
 
 .PHONY: all clean
 
@@ -32,10 +34,12 @@ all: $(PROG_BIN)
 # ---------------------------------
 #           COMPILE
 # ---------------------------------
-%.o: %.c
+$(BUILD_DIR)/%.o: %.c
+	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-%.o: %.S
+$(BUILD_DIR)/%.o: %.S
+	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 
@@ -85,4 +89,4 @@ debug: $(ASM_TXT) $(ELF_TXT)
 #           CLEAN
 # ---------------------------------
 clean:
-	rm -f $(OBJS) $(PROG_ELF) $(PROG_BIN) $(ASM_TXT) $(ELF_TXT)
+	rm -rf $(BUILD_DIR)
