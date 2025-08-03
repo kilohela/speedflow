@@ -1,7 +1,6 @@
 # Makefile
 TARGET      = riscv32-unknown-elf
 CC          = $(TARGET)-gcc
-LD          = $(TARGET)-ld
 OBJCOPY     = $(TARGET)-objcopy
 OBJDUMP     = $(TARGET)-objdump
 READELF     = $(TARGET)-readelf
