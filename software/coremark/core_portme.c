@@ -24,7 +24,7 @@ void stdio_init(){};   /* Initialize printf support (e.g. UART) */
 void cache_init(){};   /* Initialize processor's cache if available */
 unsigned long get_time_us(void){load4(TIMER+4);return load4(TIMER);};
 
-#define CLOCKS_PER_SEC             1000
+#define CLOCKS_PER_SEC             1000000
 #define GETMYTIME(_t)              (*_t = barebones_clock())
 #define MYTIMEDIFF(fin, ini)       ((fin) - (ini))
 #define TIMER_RES_DIVIDER          1

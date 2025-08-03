@@ -22,7 +22,7 @@ Original Author: Shay Gal-on
 #define HAS_STDIO 1
 #define HAS_PRINTF 1
 #define MAIN_HAS_NOARGC 1
-#define ITERATIONS 200
+#define ITERATIONS 20
 #include <stddef.h>
 
 /* Topic : Description
