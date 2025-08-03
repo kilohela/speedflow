@@ -1,5 +1,7 @@
+#include <cstdint>
 #include <cstdio>
 #include <csignal>
+#include <fmt/core.h>
 #include <spdlog/common.h>
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/rotating_file_sink.h>
@@ -8,6 +10,8 @@
 #include "device.hpp"
 
 extern Memory memory;
+extern DCache dcache;
+extern ICache icache;
 extern DeviceManager device_manager;
 
 bool simulation_on = true;
@@ -19,16 +23,52 @@ extern "C" void stop_simulation(){
 
 std::shared_ptr<spdlog::logger> global_logger;
 
-void log_dump(int signum){
+void print_report(){
+    FILE* f = fopen("out/cache_report.txt", "w");
+    fmt::print(f, "========================================\n");
+    fmt::print(f, "        DCache Report\n");
+    fmt::print(f, "========================================\n");
+    fmt::print(f, "Cache Way Count:        {:10}\n", kCacheWayCount);
+    fmt::print(f, "Cache Set Count:        {:10}\n", kCacheSetCount);
+    fmt::print(f, "Cache Block Size:       {:10}\n", kCacheBlockSize);
+    fmt::print(f, "Cache Total Size:       {:9}K\n", kCacheBlockSize * kCacheSetCount * kCacheWayCount /1024);
+    fmt::print(f, "Read total:             {:10}\n", dcache.read_total);
+    fmt::print(f, "Read hit:               {:10}\n", dcache.read_hit);
+    fmt::print(f, "Read miss:              {:10}\n", dcache.read_miss);
+    fmt::print(f, "Read miss rate:         {:9.6f}%\n", (double)(dcache.read_miss)/dcache.read_total*100);
+    fmt::print(f, "Write total:            {:10}\n", dcache.write_total);
+    fmt::print(f, "Write hit:              {:10}\n", dcache.write_hit);
+    fmt::print(f, "Write miss:             {:10}\n", dcache.write_miss);
+    fmt::print(f, "Write miss rate:        {:9.6f}%\n", (double)(dcache.write_miss)/dcache.write_total*100);
+    fmt::print(f, "Total miss rate:        {:9.6f}%\n", (double)(dcache.write_miss + dcache.read_miss)/(dcache.write_total+dcache.read_total)*100);
+    fmt::print(f, "Note, a read/write across two blocks will count as one read/write total, but might add 2 r/w hit or miss. Total miss rate is calculated by real miss handle count / total access count.");
+    fmt::print(f, "\n\n\n");
+    fmt::print(f, "========================================\n");
+    fmt::print(f, "        ICache Report\n");
+    fmt::print(f, "========================================\n");
+    fmt::print(f, "Cache Way Count:        {:10}\n", kCacheWayCount);
+    fmt::print(f, "Cache Set Count:        {:10}\n", kCacheSetCount);
+    fmt::print(f, "Cache Block Size:       {:10}\n", kCacheBlockSize);
+    fmt::print(f, "Cache Total Size:       {:9}K\n", kCacheBlockSize * kCacheSetCount * kCacheWayCount /1024);
+    fmt::print(f, "Read total:             {:10}\n", icache.read_total);
+    fmt::print(f, "Read hit:               {:10}\n", icache.read_hit);
+    fmt::print(f, "Read miss:              {:10}\n", icache.read_miss);
+    fmt::print(f, "Read miss rate:         {:9.6f}%\n", (double)(icache.read_miss)/icache.read_total*100);
+    fclose(f);
+}
+
+void save_and_exit(int signum){
     spdlog::dump_backtrace();
     global_logger->flush();
+    print_report();
+    exit(signum);
 }
 
 int main(int argc, char **argv, char **env) {
     spdlog::set_level(spdlog::level::info);
     // please read decument or makefile for argument parse reference
 
-    signal(SIGSEGV, log_dump);
+    signal(SIGINT, save_and_exit);
 
     if(argc != 4){
         spdlog::error("Parameter list error.\n");
@@ -57,7 +97,7 @@ int main(int argc, char **argv, char **env) {
     memory.init(image_path, memory_map::kPhysical);
 
     // start simulation
-    int max_cycle = 1000000000;
+    uint32_t max_cycle = -1; // -1 means infinite
     int max_vcd_time = 500;
 
     spdlog::info("Creating device instantiation...");
@@ -68,10 +108,11 @@ int main(int argc, char **argv, char **env) {
 
     // run simulation for many clock cycles
     spdlog::info("Clock cycles start");
-    for(int cycle = 1; cycle <= max_cycle && simulation_on; cycle++){
+    for(uint32_t cycle = 1; cycle <= max_cycle && simulation_on; cycle++){
         dut.clk_cycle();
     }
 
     if(simulation_on) spdlog::warn("simulation timed out");
+    print_report();
     return 0;
 }

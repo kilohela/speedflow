@@ -6,9 +6,10 @@
 #include <string>
 #include <vector>
 
-constexpr int kCacheSetCount   = 1024 * 128 / 8;
-constexpr int kCacheWayCount   = 4;
+constexpr int kCacheTotalSize     = 8 * 1024;
+constexpr int kCacheWayCount      = 4;
 constexpr size_t kCacheBlockSize  = 8;
+constexpr int kCacheSetCount      = kCacheTotalSize/kCacheWayCount/kCacheBlockSize;
 constexpr size_t kMemorySize      = 0x10000000; // should not be more than 0x10000000, the region above 0x8FFFFFFF should be map on other function
 constexpr size_t kDeviceSize      = 0x10000000;
 
@@ -59,6 +60,14 @@ public:
     // get block from memory and automatically store into cache, and store the original dirty block into memory
     void GetBlock(uint32_t address);
     
+
+    // performance counter
+    long long read_total  = 0;
+    long long read_hit    = 0;
+    long long read_miss   = 0;
+    long long write_total = 0;
+    long long write_hit   = 0;
+    long long write_miss  = 0;
 
 private:
     

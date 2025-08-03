@@ -163,19 +163,42 @@ extern "C" void dpi_dcache(
             }
 
             case Range::Physical:{
+                dcache.read_total++;
                 if(!(dcache.IsCacheHit(index, tag))){ // cache miss
                     dcache.GetBlock(addr);
+                    dcache.read_miss++;
                 }
+                else dcache.read_hit++;
 
                 CacheBlockData block_data = dcache.Read(index, tag);
-                if(block_offset == kCacheBlockSize - 4 && byte_offset!= 0 && byte_offset + rwidth > 4){
-                    spdlog::error("Attempt to read across two blocks! Change byte_offset to 0 to prevent host SEGV! Simulator will load wrong value!");
-                    spdlog::error("addr: 0x{:08x}, width: {}", addr, rwidth);
-                    byte_offset = 0;
+                uint32_t rdata_word;
+                if(block_offset + byte_offset + rwidth > kCacheBlockSize){ // access across 2 blocks
+                    spdlog::warn("Attempt to read across two blocks! This may caused by unaligned memory access.");
+                    uint32_t last_byte_addr = addr + rwidth - 1;
+                    uint32_t right_chunk_tag, right_chunk_index, right_chunk_block_offset, right_chunk_byte_offset;
+                    Range right_chunk_range = AddressParse(last_byte_addr, right_chunk_tag, right_chunk_index, right_chunk_block_offset);
+                    if(right_chunk_range != Range::Physical){
+                        spdlog::error("Read across two mmio range");
+                    }
+                    else{
+                        if(!(dcache.IsCacheHit(right_chunk_index, right_chunk_tag))){ // cache miss
+                            dcache.GetBlock(last_byte_addr);
+                            dcache.read_miss++;
+                        }
+                        else dcache.read_hit++;
+                        CacheBlockData right_chunk_block_data = dcache.Read(right_chunk_index, right_chunk_tag);
+                        uint8_t buffer[8];
+                        *(uint32_t*)buffer = *(uint32_t*)(&block_data[kCacheBlockSize - 4]);
+                        *(uint32_t*)(buffer + 4) = *(uint32_t*)(&right_chunk_block_data[0]);
+                        rdata_word = *(uint32_t*)(buffer + byte_offset);
+                    }
                 }
-                uint32_t rdata_word = *(uint32_t*)(&block_data[block_offset + byte_offset]);
+                else { // single block access
+                    rdata_word = *(uint32_t*)(&block_data[block_offset + byte_offset]);
+                }
+
                 uint32_t rdata_unext = rdata_word<<(32-rwidth*8); // LSB-aligned --> MSB-aligned, cut the MSBs
-                if(rsign){
+                if(rsign == 0){
                     *rdata = rdata_unext>>(32-rwidth*8); // note endianness!
                 }
                 else{
@@ -206,9 +229,12 @@ extern "C" void dpi_dcache(
                 break;
             }
             case Range::Physical:{
+                dcache.write_total++;
                 if(!(dcache.IsCacheHit(index, tag))){ // cache miss
                     dcache.GetBlock(addr);
+                    dcache.write_miss++;
                 }
+                else dcache.write_hit++;
                 CacheBlockData block_data = dcache.Read(index, tag);
                 if(block_offset == kCacheBlockSize - 4 && byte_offset!= 0 && byte_offset + wwidth > 4){
                     spdlog::error("Attempt to write across two blocks! Do nothing!");
@@ -244,9 +270,12 @@ extern "C" void dpi_icache(uint32_t addr, uint32_t* rdata){ // don't support una
         return;
     }
     // called combinational
+    icache.read_total++;
     if(!(icache.IsCacheHit(index, tag))){ // cache miss
         icache.GetBlock(addr);
+        icache.read_miss++;
     }
+    else icache.read_hit++;
     CacheBlockData block_data = icache.Read(index, tag);
     *rdata = *(uint32_t*)(block_data.data()+block_offset);
     // spdlog::debug("icache valid = 1");
