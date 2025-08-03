@@ -1,0 +1,25 @@
+extern void check(int cond);
+#define LENGTH(arr)         (sizeof(arr) / sizeof((arr)[0]))
+
+int ans[] = {6, 28};
+
+int main() {
+	int n, sum, i, k = 0;
+	for(n = 1; n < 30; n ++) {
+		sum = 0;
+		for(i = 1; i < n; i ++) {
+			if(n % i == 0) {
+				sum += i;
+			}
+		}
+
+		if(sum == n) {
+			check(n == ans[k]);
+			k ++;
+		}
+	}
+
+	check(k == 2);
+
+	return 0;
+}
