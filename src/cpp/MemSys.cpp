@@ -171,7 +171,7 @@ extern "C" void dpi_dcache(
                 else dcache.read_hit++;
 
                 CacheBlockData block_data = dcache.Read(index, tag);
-                uint32_t rdata_word;
+                uint8_t read_buffer[8] = {0};
                 if(block_offset + byte_offset + rwidth > kCacheBlockSize){ // access across 2 blocks
                     spdlog::warn("Attempt to read across two blocks! This may caused by unaligned memory access.");
                     uint32_t last_byte_addr = addr + rwidth - 1;
@@ -187,16 +187,14 @@ extern "C" void dpi_dcache(
                         }
                         else dcache.read_hit++;
                         CacheBlockData right_chunk_block_data = dcache.Read(right_chunk_index, right_chunk_tag);
-                        uint8_t buffer[8];
-                        *(uint32_t*)buffer = *(uint32_t*)(&block_data[kCacheBlockSize - 4]);
-                        *(uint32_t*)(buffer + 4) = *(uint32_t*)(&right_chunk_block_data[0]);
-                        rdata_word = *(uint32_t*)(buffer + byte_offset);
+                        *(uint32_t*)read_buffer = *(uint32_t*)(&block_data[kCacheBlockSize - 4]);
+                        *(uint32_t*)(read_buffer + 4) = *(uint32_t*)(&right_chunk_block_data[0]);
                     }
                 }
                 else { // single block access
-                    rdata_word = *(uint32_t*)(&block_data[block_offset + byte_offset]);
+                    *(uint32_t*)(read_buffer + byte_offset) = *(uint32_t*)(&block_data[block_offset + byte_offset]);
                 }
-
+                uint32_t rdata_word = *(uint32_t*)(read_buffer + byte_offset);
                 uint32_t rdata_unext = rdata_word<<(32-rwidth*8); // LSB-aligned --> MSB-aligned, cut the MSBs
                 if(rsign == 0){
                     *rdata = rdata_unext>>(32-rwidth*8); // note endianness!
@@ -235,15 +233,34 @@ extern "C" void dpi_dcache(
                     dcache.write_miss++;
                 }
                 else dcache.write_hit++;
-                CacheBlockData block_data = dcache.Read(index, tag);
-                if(block_offset == kCacheBlockSize - 4 && byte_offset!= 0 && byte_offset + wwidth > 4){
-                    spdlog::error("Attempt to write across two blocks! Do nothing!");
-                    spdlog::error("addr: 0x{:08x}, width: {}", addr, wwidth);
+                CacheBlockData left_chunk_block_data = dcache.Read(index, tag);
+                uint32_t rectified_left_wwidth = wwidth;
+                if(block_offset + byte_offset + wwidth > kCacheBlockSize){
+                    spdlog::warn("Attempt to write across two blocks! This may caused by unaligned memory access.");
+                    
+                    uint32_t last_byte_addr = addr + wwidth - 1;
+                    uint32_t right_chunk_tag, right_chunk_index, right_chunk_block_offset, right_chunk_byte_offset;
+                    Range right_chunk_range = AddressParse(last_byte_addr, right_chunk_tag, right_chunk_index, right_chunk_block_offset);
+                    if(right_chunk_range != Range::Physical){
+                        spdlog::error("Write across two mmio range, do nothing!");
+                        break;
+                    }
+
+                    if(!(dcache.IsCacheHit(right_chunk_index, right_chunk_tag))){ // cache miss
+                        dcache.GetBlock(last_byte_addr);
+                        dcache.write_miss++;
+                    }
+                    else dcache.write_hit++;
+
+                    CacheBlockData right_chunk_block_data = dcache.Read(right_chunk_index, right_chunk_tag);
+                    rectified_left_wwidth = kCacheBlockSize - block_offset - byte_offset;
+                    uint32_t right_wwidth = wwidth - rectified_left_wwidth;
+                    std::memcpy(right_chunk_block_data.data(), (uint8_t*)(&wdata) + rectified_left_wwidth, right_wwidth);
+                    dcache.Write(right_chunk_index, right_chunk_tag, right_chunk_block_data);
                 }
-                else {
-                    std::memcpy(block_data.data()+block_offset+byte_offset, &wdata, wwidth);
-                    dcache.Write(index, tag, block_data);
-                }
+
+                std::memcpy(left_chunk_block_data.data()+block_offset+byte_offset, &wdata, rectified_left_wwidth);
+                dcache.Write(index, tag, left_chunk_block_data);
                 spdlog::debug("dcache write: store 0x{:08x} to address 0x{:08x}, width = {}", wdata, addr, wwidth);
                 break;
             }
