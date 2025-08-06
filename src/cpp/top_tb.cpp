@@ -16,9 +16,16 @@ extern DeviceManager device_manager;
 
 bool simulation_on = true;
 
+enum class StopCause {
+    NONE,
+    EBREAK,
+    TIME_OUT,
+    KEYBOARD_INTERRUPT,
+} stop_cause;
+
 extern "C" void stop_simulation(){
-    spdlog::info("stop simulation");
     simulation_on = false;
+    stop_cause = StopCause::EBREAK;
 }
 
 std::shared_ptr<spdlog::logger> global_logger;
@@ -57,18 +64,16 @@ void print_report(){
     fclose(f);
 }
 
-void save_and_exit(int signum){
-    spdlog::dump_backtrace();
-    global_logger->flush();
-    print_report();
-    exit(signum);
+void sigint_handler(int signum){
+    simulation_on = false;
+    stop_cause = StopCause::KEYBOARD_INTERRUPT;
 }
 
 int main(int argc, char **argv, char **env) {
     spdlog::set_level(spdlog::level::info);
     // please read decument or makefile for argument parse reference
 
-    signal(SIGINT, save_and_exit);
+    signal(SIGINT, sigint_handler);
 
     if(argc != 4){
         spdlog::error("Parameter list error.\n");
@@ -112,7 +117,22 @@ int main(int argc, char **argv, char **env) {
         dut.clk_cycle();
     }
 
-    if(simulation_on) spdlog::warn("simulation timed out");
+    if(simulation_on) stop_cause = StopCause::TIME_OUT;
+    switch (stop_cause) {
+    case StopCause::EBREAK: 
+        spdlog::info("Simulation stopped by software");
+        break;
+    case StopCause::TIME_OUT:
+        spdlog::warn("Simulation timed out");
+        break;
+    case StopCause::KEYBOARD_INTERRUPT:
+        spdlog::warn("Simulation stopped by keyboard interrupt");
+        break;
+    default:
+        spdlog::error("Simulation stopped by unknown event");
+        break;
+    }
+    
     print_report();
     return 0;
 }
