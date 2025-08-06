@@ -196,25 +196,22 @@ _READ_WRITE_RETURN_TYPE write (int __fd, const void *__buf, size_t __nbyte) {
 }
 
 
-void* sbrk(ptrdiff_t __incr){
+// WARNING: It can be called only to enlarge the heap, never try to decrease the size
+uint32_t brk(uint32_t abs_break){
   extern char _end;		/* heap start, defined by the linker */
   static char *heap_end;
-  char *prev_heap_end;
- 
   if (heap_end == 0) {
     heap_end = &_end;
   }
-  prev_heap_end = heap_end;
-  char* stack_ptr;
+  uint32_t stack_ptr;
   __asm__ volatile ("mv %0, sp": "=r" (stack_ptr));
-  if (heap_end + __incr > stack_ptr) {
-    printstr("Heap and stack collision\n");
+  if (abs_break > stack_ptr) {
+    printerr("No memory\n");
     errno = ENOMEM;
-    _exit(1);
+    return -1;
   }
-
-  heap_end += __incr;
-  return (caddr_t) prev_heap_end;
+  if(abs_break > (uint32_t)heap_end) heap_end = (char*)abs_break;
+  return (uint32_t)heap_end;
 }
 
 int stat(const char *file, struct stat *st) {
@@ -277,7 +274,7 @@ Context* __trap_handler(Context *c) {
       int syscall_number = c->gpr[17];
       switch (syscall_number) { // a7, used to pass system call number
         case SYS_fstat: c->gpr[10] = fstat(c->gpr[10], (struct stat*)(c->gpr[11])); break;
-        case SYS_brk  : c->gpr[10] = (uint32_t)sbrk(c->gpr[10]); break;
+        case SYS_brk  : c->gpr[10] = brk(c->gpr[10]); break;
         case SYS_write: c->gpr[10] = write(c->gpr[10], (char*)(c->gpr[11]), c->gpr[12]); break;
         case SYS_close: c->gpr[10] = close(c->gpr[10]); break;
         case SYS_read : c->gpr[10] = read(c->gpr[10], (char*)(c->gpr[11]), c->gpr[12]); break;
