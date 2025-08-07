@@ -16,7 +16,6 @@ bss_clear_loop:
 bss_clear_done:
     call trap_init
     call main
-    call exit
 
 halt:
     nop
