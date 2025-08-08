@@ -63,7 +63,7 @@ int main(int argc, char **argv, char **env) {
     // instantiate vcd, log, dut, random seed, init memory and reset device
 
     if(!log_path.empty()){
-        spdlog::info("Switching logger...");
+        spdlog::info("log will be written to: {}", log_path);
         global_logger = spdlog::rotating_logger_mt("global", log_path, 3*1024*1024, 3);
         spdlog::set_default_logger(global_logger);
         spdlog::set_level(spdlog::level::debug);
