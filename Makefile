@@ -7,8 +7,8 @@ OUT_VCD = $(OUT_DIR)/top.vcd
 OUT_LOG = $(OUT_DIR)/top.log
 CFLAGS = -ggdb3 -I. -I$(WORK_DIR) -std=c++14 -lspdlog -lfmt
 LDFLAGS = -ggdb3 -lspdlog -lfmt
-IMG := test/rvtest.bin
-
+#IMG := test/testc.bin
+IMG := test/badapple.bin
 
 all: $(VSRCS) $(CSRCS)
 	mkdir -p $(BUILD_DIR)
@@ -18,7 +18,7 @@ all: $(VSRCS) $(CSRCS)
 				--top $(TOP_NAME) -CFLAGS "$(CFLAGS)" -LDFLAGS "$(LDFLAGS)" -Mdir $(BUILD_DIR)/obj_dir
 
 sim: all
-	./$(BUILD_DIR)/obj_dir/V$(TOP_NAME) $(IMG) $(OUT_VCD) $(OUT_LOG) $(SKIP_RVDB)
+	./$(BUILD_DIR)/obj_dir/V$(TOP_NAME) --image $(IMG) --wave $(OUT_VCD) --log $(OUT_LOG) --keep
 
 gtk: sim
 	gtkwave top.vcd &

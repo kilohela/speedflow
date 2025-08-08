@@ -2,14 +2,14 @@
 
 namespace verilator{
 
-    Dut::Dut(const char* vcd_path, const int max_vcd_time) : max_vcd_time(max_vcd_time){
+    Dut::Dut(const std::string &vcd_path, const int max_vcd_time) : max_vcd_time(max_vcd_time){
         dut = new Vtop;
         vcd = nullptr;
-        if(vcd_path){
+        if(!vcd_path.empty()){
             Verilated::traceEverOn(true);
             vcd = new VerilatedVcdC;
             dut->trace(vcd, 99);
-            vcd->open(vcd_path);
+            vcd->open(vcd_path.c_str());
         }
     }
 

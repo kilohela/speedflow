@@ -62,7 +62,7 @@ OUT_VCD = $(OUT_DIR)/top.vcd
 OUT_LOG = $(OUT_DIR)/top.log
 
 run: $(PROG_BIN)
-	../../build/obj_dir/Vtop $(PROG_BIN) $(OUT_VCD) $(OUT_LOG)
+	../../build/obj_dir/Vtop -i $(PROG_BIN) -w $(OUT_VCD) -l $(OUT_LOG) -k
 
 
 

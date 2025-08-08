@@ -1,10 +1,10 @@
 #include <cstdint>
 #include <cstdio>
 #include <csignal>
-#include <fmt/core.h>
 #include <spdlog/common.h>
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/rotating_file_sink.h>
+#include <CLI/CLI.hpp>
 #include "MemSys.hpp"
 #include "verilator.hpp"
 #include "device.hpp"
@@ -13,6 +13,7 @@ extern Memory memory;
 extern DCache dcache;
 extern ICache icache;
 extern DeviceManager device_manager;
+void print_report();
 
 bool simulation_on = true;
 
@@ -30,67 +31,46 @@ extern "C" void stop_simulation(){
 
 std::shared_ptr<spdlog::logger> global_logger;
 
-void print_report(){
-    FILE* f = fopen("out/cache_report.txt", "w");
-    fmt::print(f, "========================================\n");
-    fmt::print(f, "        DCache Report\n");
-    fmt::print(f, "========================================\n");
-    fmt::print(f, "Cache Way Count:        {:10}\n", kCacheWayCount);
-    fmt::print(f, "Cache Set Count:        {:10}\n", kCacheSetCount);
-    fmt::print(f, "Cache Block Size:       {:10}\n", kCacheBlockSize);
-    fmt::print(f, "Cache Total Size:       {:9}K\n", kCacheBlockSize * kCacheSetCount * kCacheWayCount /1024);
-    fmt::print(f, "Read total:             {:10}\n", dcache.read_total);
-    fmt::print(f, "Read hit:               {:10}\n", dcache.read_hit);
-    fmt::print(f, "Read miss:              {:10}\n", dcache.read_miss);
-    fmt::print(f, "Read miss rate:         {:9.6f}%\n", (double)(dcache.read_miss)/dcache.read_total*100);
-    fmt::print(f, "Write total:            {:10}\n", dcache.write_total);
-    fmt::print(f, "Write hit:              {:10}\n", dcache.write_hit);
-    fmt::print(f, "Write miss:             {:10}\n", dcache.write_miss);
-    fmt::print(f, "Write miss rate:        {:9.6f}%\n", (double)(dcache.write_miss)/dcache.write_total*100);
-    fmt::print(f, "Total miss rate:        {:9.6f}%\n", (double)(dcache.write_miss + dcache.read_miss)/(dcache.write_total+dcache.read_total)*100);
-    fmt::print(f, "Note, a read/write across two blocks will count as one read/write total, but might add 2 r/w hit or miss. Total miss rate is calculated by real miss handle count / total access count.");
-    fmt::print(f, "\n\n\n");
-    fmt::print(f, "========================================\n");
-    fmt::print(f, "        ICache Report\n");
-    fmt::print(f, "========================================\n");
-    fmt::print(f, "Cache Way Count:        {:10}\n", kCacheWayCount);
-    fmt::print(f, "Cache Set Count:        {:10}\n", kCacheSetCount);
-    fmt::print(f, "Cache Block Size:       {:10}\n", kCacheBlockSize);
-    fmt::print(f, "Cache Total Size:       {:9}K\n", kCacheBlockSize * kCacheSetCount * kCacheWayCount /1024);
-    fmt::print(f, "Read total:             {:10}\n", icache.read_total);
-    fmt::print(f, "Read hit:               {:10}\n", icache.read_hit);
-    fmt::print(f, "Read miss:              {:10}\n", icache.read_miss);
-    fmt::print(f, "Read miss rate:         {:9.6f}%\n", (double)(icache.read_miss)/icache.read_total*100);
-    fclose(f);
-}
-
 void sigint_handler(int signum){
     simulation_on = false;
     stop_cause = StopCause::KEYBOARD_INTERRUPT;
 }
 
+bool keep_running, log_stdout;
+long long max_cycle;
+std::string waveform_path, log_path, image_path, report_path;
+int random_seed, wave_time;
+
 int main(int argc, char **argv, char **env) {
     spdlog::set_level(spdlog::level::info);
-    // please read decument or makefile for argument parse reference
+
+    CLI::App app ("speedflow riscv simulator");
+    app.add_flag("-k,--keep", keep_running, "run infinite cycles") -> default_val(false);
+    app.add_flag("--log-stdout", log_stdout, "output log to stdout") -> default_val(false);
+
+    app.add_option("-c,--cycles", max_cycle, "set the max cycle") -> default_val(1000000000);
+    app.add_option("-w,--wave", waveform_path, "set the waveform path") -> default_val("");
+    app.add_option("--wave-time", wave_time, "set the max time of waveform tracer") -> default_val(500);
+    app.add_option("-l,--log", log_path, "set the log path") -> default_val("");
+    app.add_option("-r,--report", report_path, "set cache report path") ->default_val("");
+    app.add_option("-i,--image", image_path, "set the image path") -> required();
+    app.add_option("-s,--seed", random_seed, "set the random seed for emulation") -> default_val(0);
+
+    CLI11_PARSE(app, argc, argv);
 
     signal(SIGINT, sigint_handler);
 
-    if(argc != 4){
-        spdlog::error("Parameter list error.\n");
-        return 1;
-    }
-
     // instantiate vcd, log, dut, random seed, init memory and reset device
-    char*& image_path = argv[1];
-    char*& vcd_path   = argv[2];
-    char*& log_path   = argv[3];
 
-    spdlog::info("Switching logger...");
-    global_logger = spdlog::rotating_logger_mt("global_logger", argv[3], 3*1024*1024, 3);
-    spdlog::set_default_logger(global_logger);
-    spdlog::set_level(spdlog::level::debug);
-
-    // init seed, there is no randomness now, skip
+    if(!log_path.empty()){
+        spdlog::info("Switching logger...");
+        global_logger = spdlog::rotating_logger_mt("global", log_path, 3*1024*1024, 3);
+        spdlog::set_default_logger(global_logger);
+        spdlog::set_level(spdlog::level::debug);
+    }
+    else if(!log_stdout){
+        spdlog::set_level(spdlog::level::off);
+    }
 
     // init devices
     spdlog::info("Registering devices...");
@@ -102,18 +82,16 @@ int main(int argc, char **argv, char **env) {
     memory.init(image_path, memory_map::kPhysical);
 
     // start simulation
-    uint32_t max_cycle = -1; // -1 means infinite
-    int max_vcd_time = 500;
 
     spdlog::info("Creating device instantiation...");
-    verilator::Dut dut(vcd_path, max_vcd_time);
+    verilator::Dut dut(waveform_path, wave_time);
 
     spdlog::info("Resetting device...");
     dut.rst_device();
 
     // run simulation for many clock cycles
     spdlog::info("Clock cycles start");
-    for(uint32_t cycle = 1; cycle <= max_cycle && simulation_on; cycle++){
+    for(long long cycle = 1; cycle <= max_cycle && simulation_on; cycle++){
         dut.clk_cycle();
     }
 
