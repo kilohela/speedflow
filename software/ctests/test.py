@@ -8,6 +8,5 @@ test_images = glob.glob(os.path.join("./build", "*.bin"))
 
 for image in test_images:
     print(f"Start testing image: {image}")
-    result = subprocess.run(["../../build/obj_dir/Vtop", "-i", image, "-k"])
+    result = subprocess.run(["../../build/obj_dir/Vtop", "-i", image, "-k"], capture_output=True, text=True)
     print(result.stdout)
-    print()
