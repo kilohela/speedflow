@@ -27,9 +27,6 @@ all: $(PROG_BINS)
 
 vpath %.c tests
 
-$(MAIN_SRC): generate_main.py
-	./generate_main.py tests
-
 # ---------------------------------
 #           COMPILE
 # ---------------------------------
